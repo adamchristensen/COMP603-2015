@@ -73,13 +73,18 @@ class CommandNode : public Node {
         }
 };
 
+class Container : public Node {
+	public:
+	vector<Node*> children;
+	virtual void accept (Visitor *v) = 0;
+};
+
 /**
  * Loop publicly extends Node to accept visitors.
  * Loop represents a loop in Brainfuck.
  */
-class Loop : public Node {
+class Loop : public Container {
     public:
-        vector<Node*> children;
         void accept (Visitor * v) {
             v->visit(this);
         }
@@ -89,9 +94,8 @@ class Loop : public Node {
  * Program is the root of a Brainfuck program abstract syntax tree.
  * Because Brainfuck is so primitive, the parse tree is the abstract syntax tree.
  */
-class Program : public Node {
+class Program : public Container {
     public:
-        vector<Node*> children;
         void accept (Visitor * v) {
             v->visit(this);
         }
@@ -101,8 +105,7 @@ class Program : public Node {
  * Read in the file by recursive descent.
  * Modify as necessary and add whatever functions you need to get things done.
  */
-void parse(fstream & file, Program * program) {
-    int nesting = 0;
+void parse(fstream & file, Container * container) {
     // How to peek at the next character
    // c = (char)file.peek();
     // How to print out that character
@@ -113,185 +116,26 @@ void parse(fstream & file, Program * program) {
     //cout << c;
     // How to insert a node into the program.
     //program->children.push_back(new CommandNode(c));
-
-	 int position = 0;
-	program(program, file, nesting, position);
-	
-}
-	 char peek(fstream & file, int position){
-		char c;
-		if(position == ftell(file)){
-			return 0;
-		}
-		c = (char)file.peek();
-		return c;
-	}
-	 void eat(char letter, int position){
-		char c;
-		file >> c;
-		if(letter == c){
-			position ++;
-		} else{
-			return 0;
-		}
-	}
-	 void program(Program* p, fstream & file, int* nesting, int* position) {
-		switch(peek(file, position)){
-		case '[':
-			eat('[', position);
-			Loop l;
-			p->children.push_back(l);
-			sequence(l, file, nesting, position, p);
-			break;
-		case '+':
-			inc(program, file, position);
-			break;
-		case '-':
-			dec(program, file, position);
-			break;
-		case '.':
-			out(program, file, position);
-			break;
-		case ',':
-			in(program, file, position);
-			break;
-		case '>':
-			pinc(program, file, position);
-			break;
-		case '<':
-			pdec(program, file, position);
-			break;
-		}
-	}
-	 Program sequence(Loop* l, fstream & file, int* nesting, int* position, Program * p){
-		switch(peek(file, position)){
+	Loop * l;
+	char c;
+	while(file >> c) {
+		switch (c) {
 			case '[':
-				eat('[', position);
-				nesting++;
-				loop(l, file, nesting, position, p);
+				l = new Loop();
+				container->children.push_back(l);
+				parse(file, l);
 				break;
 			case ']':
-				eat(']', position);
-				end_loop(l, file, nesting, position, p);
+				return;
+			case '+': case '-': case '.': case ',': case '>': case '<':
+				container->children.push_back(new CommandNode(c));
 				break;
-			case '+':
-				inc(l, file, nesting, position);
+			default:
 				break;
-			case '-':
-				dec(l, file,nesting, position);
-				break;
-			case '.':
-				out(l, file,nesting, position);
-				break;
-			case ',':
-				in(l, file,nesting, position);
-				break;
-			case '>':
-				pinc(l, file,nesting, position);
-				break;
-			case '<':
-				pdec(l, file,nesting, position);
-				break;
-		}
-	}
-	public void loop(Loop* l, fstream & file, int* nesting, int* position, Program * p){
-		l->children.push_back(new CommandNode('['));
-		sequence(l, file, nesting, position, p);
-	}
-	public void end_loop(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		l->children.push_back(new CommandNode(']'));
-		if(nesting == 0){
-			program(p,file,nesting,position);
-		}else{
-			nesting--;
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	 public void inc(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file, position) == '+'){
-			eat('+', position);
-			l->children.push_back(new CommandNode('+'));
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	public void dec(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file, position) == '-'){
-			eat('-', position);
-			l->children.push_back(new CommandNode('-'));
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	public void out(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file,position) == '.'){
-			eat('.', position);
-			l->children.push_back(new CommandNode('.'));
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	public void in(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file, position) == ','){
-			eat(',', position);
-			l->children.push_back(new CommandNode(','));
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	public void pinc(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file, position) == '>'){
-			eat('>', position);
-			l->children.push_back(new CommandNode('>'));
-			sequence(l, file, nesting, position, p);
-		}
-	}
-	public void pdec(Loop* l, fstream & file, int* nesting, int* position, Program* p){
-		if(peek(file, position) == '<'){
-			eat('<', position);
-			l->children.push_back(new CommandNode('<'));
-			sequence(l, file, nesting, position, p);
 		}
 	}
 	
-	public void inc(Program* p, fstream & file, int* nesting, int* position){
-		if(peek(file, position) == '+'){
-			eat('+', position);
-			p->children.push_back(new CommandNode('+'));
-			program(p, file, nesting, position);
-		}
-	}
-	public void dec(Program* p, fstream & file, int* nesting, int* position){
-		if(peek(file, position) == '-'){
-			eat('-' position);
-			p->children.push_back(new CommandNode('-'));
-			program(p, file, nesting, position);
-		}
-	}
-	public void out(Program* p, fstream & file, int* nesting, int* position){
-		if(peek(file, position) == '.'){
-			eat('.', position);
-			p->children.push_back(new CommandNode('.'));
-			program(p, file, nesting, position);
-		}
-	}
-	public void in(Program* p, fstream & file, int* nesting, int* position){
-		if(peek(file, position) == ','){
-			eat(',', position);
-			p->children.push_back(new CommandNode(','));
-			program(p, file, nesting, position);
-		}
-	}
-	public void pinc(Program* p, fstream & file,int* nesting, int* position){
-		if(peek(file, position) == '>'){
-			eat('>', position);
-			p->children.push_back(new CommandNode('>'));
-			program(p, file, nesting, position);
-		}
-	}
-	public void pdec(Program* p, fstream & file, int* nesting, int* position){
-		if(peek(file, position) == '<'){
-			eat('<', position);
-			p->children.push_back(new CommandNode('<'));
-			program(p, file, nesting, position);
-		}
-	}
+}
 
 /**
  * A printer for Brainfuck abstract syntax trees.
